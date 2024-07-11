@@ -1,5 +1,7 @@
-import { promises as fs } from 'fs';
+import { promises as fsp } from 'fs';
 import { IpluginInputArgs } from './interfaces/interfaces';
+
+export const fileExists = async (path:string): Promise<boolean> => !!(await fsp.stat(path).catch(() => false));
 
 export const getContainer = (filePath: string): string => {
   const parts = filePath.split('.');
@@ -36,8 +38,8 @@ export const getSubStem = ({
   return parts.join('/');
 };
 
-const getFileSize = async (file:string):Promise<number> => {
-  const stats = await fs.stat(file);
+export const getFileSize = async (file:string):Promise<number> => {
+  const stats = await fsp.stat(file);
   const { size } = stats;
   return size;
 };
@@ -75,6 +77,11 @@ export const moveFileAndValidate = async ({
   }
 
   if (!res1 || inputSize !== outputSize) {
+    if (inputSize !== outputSize) {
+      args.jobLog(`File sizes do not match, input: ${inputSize} `
+      + `does not equal  output: ${outputSize}`);
+    }
+
     args.jobLog(`Attempt 1  failed: Moving file from ${inputPath} to ${outputPath}`);
     args.jobLog(`Attempt 2: Moving file from ${inputPath} to ${outputPath}`);
 
@@ -92,6 +99,11 @@ export const moveFileAndValidate = async ({
     outputSize = await getFileSize(outputPath);
 
     if (!res2 || inputSize !== outputSize) {
+      if (inputSize !== outputSize) {
+        args.jobLog(`File sizes do not match, input: ${inputSize} `
+        + `does not equal  output: ${outputSize}`);
+      }
+
       const errMessage = `Failed to move file from ${inputPath} to ${outputPath}, check errors above`;
       args.jobLog(errMessage);
       throw new Error(errMessage);

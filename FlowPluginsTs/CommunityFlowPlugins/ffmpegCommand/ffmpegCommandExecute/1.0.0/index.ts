@@ -6,6 +6,7 @@ import {
 } from '../../../../FlowHelpers/1.0.0/interfaces/interfaces';
 import { CLI } from '../../../../FlowHelpers/1.0.0/cliUtils';
 import { getFileName, getPluginWorkDir } from '../../../../FlowHelpers/1.0.0/fileUtils';
+import { checkFfmpegCommandInit } from '../../../../FlowHelpers/1.0.0/interfaces/flowUtils';
 
 /* eslint no-plusplus: ["error", { "allowForLoopAfterthoughts": true }] */
 const details = (): IpluginDetails => ({
@@ -68,14 +69,23 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars,no-param-reassign
   args.inputs = lib.loadDefaultValues(args.inputs, details);
 
+  checkFfmpegCommandInit(args);
+
   const cliArgs: string[] = [];
 
   cliArgs.push('-y');
   cliArgs.push('-i');
   cliArgs.push(args.inputFileObj._id);
 
-  const inputArgs: string[] = [];
   let { shouldProcess, streams } = args.variables.ffmpegCommand;
+
+  if (args.variables.ffmpegCommand.overallInputArguments.length > 0) {
+    shouldProcess = true;
+  }
+
+  const inputArgs: string[] = [
+    ...args.variables.ffmpegCommand.overallInputArguments,
+  ];
 
   streams = streams.filter((stream) => {
     if (stream.removed) {
@@ -83,6 +93,11 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
     }
     return !stream.removed;
   });
+
+  if (streams.length === 0) {
+    args.jobLog('No streams mapped for new file');
+    throw new Error('No streams mapped for new file');
+  }
 
   for (let i = 0; i < streams.length; i += 1) {
     const stream = streams[i];
@@ -112,6 +127,14 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
     inputArgs.push(...stream.inputArgs);
   }
 
+  const idx = cliArgs.indexOf('-i');
+  cliArgs.splice(idx, 0, ...inputArgs);
+
+  if (args.variables.ffmpegCommand.overallOuputArguments.length > 0) {
+    cliArgs.push(...args.variables.ffmpegCommand.overallOuputArguments);
+    shouldProcess = true;
+  }
+
   if (!shouldProcess) {
     args.jobLog('No need to process file, already as required');
     return {
@@ -121,34 +144,34 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
     };
   }
 
-  const idx = cliArgs.indexOf('-i');
-  cliArgs.splice(idx, 0, ...inputArgs);
-
   const outputFilePath = `${getPluginWorkDir(args)}/${getFileName(args.inputFileObj._id)}`
   + `.${args.variables.ffmpegCommand.container}`;
 
   cliArgs.push(outputFilePath);
 
+  const spawnArgs = cliArgs.map((row) => row.trim()).filter((row) => row !== '');
+
   args.jobLog('Processing file');
   args.jobLog(JSON.stringify({
-    cliArgs,
+    spawnArgs,
     outputFilePath,
   }));
 
   args.updateWorker({
     CLIType: args.ffmpegPath,
-    preset: cliArgs.join(' '),
+    preset: spawnArgs.join(' '),
   });
 
   const cli = new CLI({
     cli: args.ffmpegPath,
-    spawnArgs: cliArgs,
+    spawnArgs,
     spawnOpts: {},
     jobLog: args.jobLog,
     outputFilePath,
     inputFileObj: args.inputFileObj,
     logFullCliOutput: args.logFullCliOutput,
     updateWorker: args.updateWorker,
+    args,
   });
 
   const res = await cli.runCli();
@@ -159,6 +182,9 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
   }
 
   args.logOutcome('tSuc');
+
+  // eslint-disable-next-line no-param-reassign
+  args.variables.ffmpegCommand.init = false;
 
   return {
     outputFileObj: {

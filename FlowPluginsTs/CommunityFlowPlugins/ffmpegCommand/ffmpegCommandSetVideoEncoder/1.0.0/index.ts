@@ -1,6 +1,7 @@
 /* eslint no-plusplus: ["error", { "allowForLoopAfterthoughts": true }] */
 
 import { getEncoder } from '../../../../FlowHelpers/1.0.0/hardwareUtils';
+import { checkFfmpegCommandInit } from '../../../../FlowHelpers/1.0.0/interfaces/flowUtils';
 import {
   IpluginDetails,
   IpluginInputArgs,
@@ -22,6 +23,7 @@ const details = (): IpluginDetails => ({
   icon: '',
   inputs: [
     {
+      label: 'Output Codec',
       name: 'outputCodec',
       type: 'string',
       defaultValue: 'hevc',
@@ -32,11 +34,23 @@ const details = (): IpluginDetails => ({
           // 'vp9',
           'h264',
           // 'vp8',
+          'av1',
         ],
       },
       tooltip: 'Specify codec of the output file',
     },
     {
+      label: 'Enable FFmpeg Preset',
+      name: 'ffmpegPresetEnabled',
+      type: 'boolean',
+      defaultValue: 'true',
+      inputUI: {
+        type: 'switch',
+      },
+      tooltip: 'Specify whether to use an FFmpeg preset',
+    },
+    {
+      label: 'FFmpeg Preset',
       name: 'ffmpegPreset',
       type: 'string',
       defaultValue: 'fast',
@@ -53,54 +67,103 @@ const details = (): IpluginDetails => ({
           'superfast',
           'ultrafast',
         ],
+        displayConditions: {
+          logic: 'AND',
+          sets: [
+            {
+              logic: 'AND',
+              inputs: [
+                {
+                  name: 'ffmpegPresetEnabled',
+                  value: 'true',
+                  condition: '===',
+                },
+              ],
+            },
+          ],
+        },
       },
       tooltip: 'Specify ffmpeg preset',
     },
     {
+      label: 'Enable FFmpeg Quality',
+      name: 'ffmpegQualityEnabled',
+      type: 'boolean',
+      defaultValue: 'true',
+      inputUI: {
+        type: 'switch',
+      },
+      tooltip: 'Specify whether to set crf (or qp for GPU encoding)',
+    },
+    {
+      label: 'FFmpeg Quality',
       name: 'ffmpegQuality',
       type: 'number',
       defaultValue: '25',
       inputUI: {
         type: 'text',
+        displayConditions: {
+          logic: 'AND',
+          sets: [
+            {
+              logic: 'AND',
+              inputs: [
+                {
+                  name: 'ffmpegQualityEnabled',
+                  value: 'true',
+                  condition: '===',
+                },
+              ],
+            },
+          ],
+        },
       },
-      tooltip: 'Specify ffmpeg quality',
+      tooltip: 'Specify ffmpeg quality crf (or qp for GPU encoding)',
     },
     {
+      label: 'Hardware Encoding',
       name: 'hardwareEncoding',
       type: 'boolean',
       defaultValue: 'true',
       inputUI: {
-        type: 'dropdown',
-        options: [
-          'false',
-          'true',
-        ],
+        type: 'switch',
       },
       tooltip: 'Specify whether to use hardware encoding if available',
     },
     {
+      label: 'Hardware Type',
+      name: 'hardwareType',
+      type: 'string',
+      defaultValue: 'auto',
+      inputUI: {
+        type: 'dropdown',
+        options: [
+          'auto',
+          'nvenc',
+          'qsv',
+          'vaapi',
+          'videotoolbox',
+        ],
+      },
+      tooltip: 'Specify codec of the output file',
+    },
+    {
+      label: 'Hardware Decoding',
       name: 'hardwareDecoding',
       type: 'boolean',
       defaultValue: 'true',
       inputUI: {
-        type: 'dropdown',
-        options: [
-          'false',
-          'true',
-        ],
+        type: 'switch',
       },
       tooltip: 'Specify whether to use hardware decoding if available',
     },
     {
+      label: 'Force Encoding',
       name: 'forceEncoding',
       type: 'boolean',
-      defaultValue: 'false',
+      defaultValue: 'true',
       inputUI: {
-        type: 'dropdown',
-        options: [
-          'false',
-          'true',
-        ],
+        type: 'switch',
       },
       tooltip: 'Specify whether to force encoding if stream already has the target codec',
     },
@@ -119,7 +182,10 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars,no-param-reassign
   args.inputs = lib.loadDefaultValues(args.inputs, details);
 
+  checkFfmpegCommandInit(args);
+
   const hardwareDecoding = args.inputs.hardwareDecoding === true;
+  const hardwareType = String(args.inputs.hardwareType);
   args.variables.ffmpegCommand.hardwareDecoding = hardwareDecoding;
 
   for (let i = 0; i < args.variables.ffmpegCommand.streams.length; i += 1) {
@@ -127,6 +193,7 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
 
     if (stream.codec_type === 'video') {
       const targetCodec = String(args.inputs.outputCodec);
+      const { ffmpegPresetEnabled, ffmpegQualityEnabled } = args.inputs;
       const ffmpegPreset = String(args.inputs.ffmpegPreset);
       const ffmpegQuality = String(args.inputs.ffmpegQuality);
       const forceEncoding = args.inputs.forceEncoding === true;
@@ -142,19 +209,24 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
         const encoderProperties = await getEncoder({
           targetCodec,
           hardwareEncoding: hardwarEncoding,
+          hardwareType,
           args,
         });
 
         stream.outputArgs.push('-c:{outputIndex}', encoderProperties.encoder);
 
-        if (encoderProperties.isGpu) {
-          stream.outputArgs.push('-qp', ffmpegQuality);
-        } else {
-          stream.outputArgs.push('-crf', ffmpegQuality);
+        if (ffmpegQualityEnabled) {
+          if (encoderProperties.isGpu) {
+            stream.outputArgs.push('-qp', ffmpegQuality);
+          } else {
+            stream.outputArgs.push('-crf', ffmpegQuality);
+          }
         }
 
-        if (ffmpegPreset) {
-          stream.outputArgs.push('-preset', ffmpegPreset);
+        if (ffmpegPresetEnabled) {
+          if (targetCodec !== 'av1' && ffmpegPreset) {
+            stream.outputArgs.push('-preset', ffmpegPreset);
+          }
         }
 
         if (hardwareDecoding) {

@@ -63,6 +63,7 @@ var details = function () { return ({
     icon: '',
     inputs: [
         {
+            label: 'Plugin Source ID',
             name: 'pluginSourceId',
             type: 'string',
             defaultValue: 'Community:Tdarr_Plugin_MC93_Migz1FFMPEG',
@@ -216,6 +217,7 @@ var plugin = function (args) { return __awaiter(void 0, void 0, void 0, function
                     inputFileObj: args.inputFileObj,
                     logFullCliOutput: args.logFullCliOutput,
                     updateWorker: args.updateWorker,
+                    args: args,
                 });
                 return [4 /*yield*/, cli.runCli()];
             case 2:

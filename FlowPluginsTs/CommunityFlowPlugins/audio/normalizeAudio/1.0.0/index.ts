@@ -21,6 +21,7 @@ const details = (): IpluginDetails => ({
   icon: '',
   inputs: [
     {
+      label: 'i',
       name: 'i',
       type: 'string',
       defaultValue: '-23.0',
@@ -31,6 +32,7 @@ const details = (): IpluginDetails => ({
               defaults to -23.0`,
     },
     {
+      label: 'lra',
       name: 'lra',
       type: 'string',
       defaultValue: '7.0',
@@ -41,6 +43,7 @@ const details = (): IpluginDetails => ({
             `,
     },
     {
+      label: 'tp',
       name: 'tp',
       type: 'string',
       defaultValue: '-2.0',
@@ -96,6 +99,7 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
     inputFileObj: args.inputFileObj,
     logFullCliOutput: args.logFullCliOutput,
     updateWorker: args.updateWorker,
+    args,
   });
 
   const res = await cli.runCli();
@@ -157,6 +161,7 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
     inputFileObj: args.inputFileObj,
     logFullCliOutput: args.logFullCliOutput,
     updateWorker: args.updateWorker,
+    args,
   });
 
   const res2 = await cli2.runCli();

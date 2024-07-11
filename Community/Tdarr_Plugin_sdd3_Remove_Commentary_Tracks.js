@@ -3,7 +3,7 @@ const details = () => {
   return {
     id: "Tdarr_Plugin_sdd3_Remove_Commentary_Tracks",
     Stage: "Pre-processing",
-    Name: "Remove video commentary tracks",
+    Name: "Remove Video Commentary Tracks",
     Type: "Video",
     Operation: 'Transcode',
     Description: `[Contains built-in filter] If commentary tracks are detected, they will be removed. \n\n`,
@@ -56,6 +56,7 @@ const plugin = (file, librarySettings, inputs, otherArguments) => {
       if (
         file.ffProbeData.streams[i].codec_type.toLowerCase() == "audio" &&
         file.ffProbeData.streams[i].disposition.comment == 1 ||
+        file.ffProbeData.streams[i].codec_type.toLowerCase() == "audio" &&
         file.ffProbeData.streams[i].tags.title
           .toLowerCase()
           .includes("commentary")

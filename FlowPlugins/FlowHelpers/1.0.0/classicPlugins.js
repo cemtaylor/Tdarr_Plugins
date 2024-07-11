@@ -40,7 +40,7 @@ exports.runClassicPlugin = void 0;
 var fs_1 = require("fs");
 var fileUtils_1 = require("./fileUtils");
 var runClassicPlugin = function (args, type) { return __awaiter(void 0, void 0, void 0, function () {
-    var path, pluginSourceId, parts, pluginSource, pluginId, relativePluginPath, absolutePath, classicPlugin, pluginSrcStr, res, container, cacheFilePath, otherArguments, scanTypes, pluginInputFileObj, result;
+    var path, pluginSourceId, parts, pluginSource, pluginId, relativePluginPath, absolutePath, classicPlugin, pluginSrcStr, res, container, cacheFilePath, scanTypes, pluginInputFileObj, originalLibraryFile, inputFileScanArgs, originalLibraryFileScanArgs, otherArguments, result;
     var _a;
     return __generator(this, function (_b) {
         switch (_b.label) {
@@ -98,11 +98,49 @@ var runClassicPlugin = function (args, type) { return __awaiter(void 0, void 0, 
             case 9:
                 container = (0, fileUtils_1.getContainer)(args.inputFileObj._id);
                 cacheFilePath = "".concat((0, fileUtils_1.getPluginWorkDir)(args), "/").concat((0, fileUtils_1.getFileName)(args.inputFileObj._id), ".").concat(container);
+                scanTypes = (0, fileUtils_1.getScanTypes)([pluginSrcStr]);
+                inputFileScanArgs = {
+                    _id: args.inputFileObj._id,
+                    file: args.inputFileObj.file,
+                    DB: args.inputFileObj.DB,
+                    footprintId: args.inputFileObj.footprintId,
+                };
+                originalLibraryFileScanArgs = {
+                    _id: args.originalLibraryFile._id,
+                    file: args.originalLibraryFile.file,
+                    DB: args.originalLibraryFile.DB,
+                    footprintId: args.originalLibraryFile.footprintId,
+                };
+                if (!(typeof args.scanIndividualFile !== 'undefined')) return [3 /*break*/, 12];
+                args.jobLog('Scanning files using Node');
+                return [4 /*yield*/, args.scanIndividualFile(inputFileScanArgs, scanTypes)];
+            case 10:
+                pluginInputFileObj = _b.sent();
+                return [4 /*yield*/, args.scanIndividualFile(originalLibraryFileScanArgs, scanTypes)];
+            case 11:
+                originalLibraryFile = _b.sent();
+                return [3 /*break*/, 15];
+            case 12:
+                args.jobLog('Scanning files using Server API');
+                return [4 /*yield*/, args.deps.axiosMiddleware('api/v2/scan-individual-file', {
+                        file: inputFileScanArgs,
+                        scanTypes: scanTypes,
+                    })];
+            case 13:
+                pluginInputFileObj = _b.sent();
+                return [4 /*yield*/, args.deps.axiosMiddleware('api/v2/scan-individual-file', {
+                        file: originalLibraryFileScanArgs,
+                        scanTypes: scanTypes,
+                    })];
+            case 14:
+                originalLibraryFile = _b.sent();
+                _b.label = 15;
+            case 15:
                 otherArguments = {
                     handbrakePath: args.handbrakePath,
                     ffmpegPath: args.ffmpegPath,
                     mkvpropeditPath: args.mkvpropeditPath,
-                    originalLibraryFile: args.originalLibraryFile,
+                    originalLibraryFile: originalLibraryFile,
                     nodeHardwareType: args.nodeHardwareType,
                     pluginCycle: 0,
                     workerType: args.workerType,
@@ -111,27 +149,15 @@ var runClassicPlugin = function (args, type) { return __awaiter(void 0, void 0, 
                     cacheFilePath: cacheFilePath,
                     job: args.job,
                 };
-                scanTypes = (0, fileUtils_1.getScanTypes)([pluginSrcStr]);
-                return [4 /*yield*/, args.deps.axiosMiddleware('api/v2/scan-individual-file', {
-                        file: {
-                            _id: args.inputFileObj._id,
-                            file: args.inputFileObj.file,
-                            DB: args.inputFileObj.DB,
-                            footprintId: args.inputFileObj.footprintId,
-                        },
-                        scanTypes: scanTypes,
-                    })];
-            case 10:
-                pluginInputFileObj = _b.sent();
                 return [4 /*yield*/, classicPlugin.plugin(pluginInputFileObj, args.librarySettings, args.inputs, otherArguments)];
-            case 11:
+            case 16:
                 result = _b.sent();
                 if (((_a = result === null || result === void 0 ? void 0 : result.file) === null || _a === void 0 ? void 0 : _a._id) && args.inputFileObj._id !== result.file._id) {
+                    args.jobLog("File ID changed from ".concat(args.inputFileObj._id, " to ").concat(result.file._id));
                     // eslint-disable-next-line no-param-reassign
                     args.inputFileObj._id = result.file._id;
                     // eslint-disable-next-line no-param-reassign
                     args.inputFileObj.file = result.file.file;
-                    args.jobLog("File ID changed from ".concat(args.inputFileObj._id, " to ").concat(result.file._id));
                 }
                 return [2 /*return*/, {
                         result: result,

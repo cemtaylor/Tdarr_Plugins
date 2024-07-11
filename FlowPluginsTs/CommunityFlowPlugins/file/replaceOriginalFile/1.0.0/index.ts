@@ -1,5 +1,8 @@
+import { promises as fsp } from 'fs';
+import fileMoveOrCopy from '../../../../FlowHelpers/1.0.0/fileMoveOrCopy';
 import {
-  getContainer, getFileAbosluteDir, getFileName, moveFileAndValidate,
+  fileExists,
+  getContainer, getFileAbosluteDir, getFileName,
 } from '../../../../FlowHelpers/1.0.0/fileUtils';
 import {
   IpluginDetails,
@@ -31,7 +34,6 @@ const details = (): IpluginDetails => ({
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
-  const fs = require('fs');
   const lib = require('../../../../../methods/lib')();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars,no-param-reassign
   args.inputs = lib.loadDefaultValues(args.inputs, details);
@@ -66,26 +68,28 @@ const plugin = async (args: IpluginInputArgs): Promise<IpluginOutputArgs> => {
 
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  await moveFileAndValidate({
-    inputPath: currentPath,
-    outputPath: newPathTmp,
+  await fileMoveOrCopy({
+    operation: 'move',
+    sourcePath: currentPath,
+    destinationPath: newPathTmp,
     args,
   });
 
   // delete original file
   if (
-    fs.existsSync(args.originalLibraryFile._id)
+    await fileExists(args.originalLibraryFile._id)
     && args.originalLibraryFile._id !== currentPath
   ) {
     args.jobLog(`Deleting original file:${args.originalLibraryFile._id}`);
-    fs.unlinkSync(args.originalLibraryFile._id);
+    await fsp.unlink(args.originalLibraryFile._id);
   }
 
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  await moveFileAndValidate({
-    inputPath: newPathTmp,
-    outputPath: newPath,
+  await fileMoveOrCopy({
+    operation: 'move',
+    sourcePath: newPathTmp,
+    destinationPath: newPath,
     args,
   });
 
